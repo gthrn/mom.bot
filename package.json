@@ -1,0 +1,12 @@
+{
+  "name": "mom.bot",
+  "version": "0.0.1",
+  "description": "Mom Chat Bot",
+  "main": "index.js",
+  "author": "BK",
+  "license": "MIT",
+  "private": true,
+  "dependencies": {
+    "@slack/client": "^4.2.2"
+  }
+}
