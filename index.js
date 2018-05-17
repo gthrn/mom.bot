@@ -1,3 +1,5 @@
 #!/usr/bin/env node
 const { IncomingWebhook, WebClient } = require('@slack/client');
-console.log('schwanzlurch');
+let server = require('./server');
+
+server();
