@@ -4,6 +4,10 @@
   "description": "Mom Chat Bot",
   "main": "index.js",
   "author": "BK",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "nodemon server.js"
+  },
   "license": "MIT",
   "private": true,
   "dependencies": {
