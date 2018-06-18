@@ -1,6 +1,7 @@
 let mysql      = require('mysql');
 let BotModule = require('./api/models/botModule');
 let Message = require('./api/models/message');
+let BotMessage = require('./api/models/botMessage');
 
 let connection = null;
 
@@ -15,15 +16,6 @@ function initConnection() {
 
 function initDatabase() {
     initConnection();
-
-    connection.query('CREATE TABLE IF NOT EXISTS messages (\n' +
-        '  id INT NOT NULL AUTO_INCREMENT,\n' +
-        '  content TEXT,\n' +
-        '  user_name varchar(45),\n' +
-        '  time_stamp DATETIME,\n' +
-        '  processed bool,' +
-        '  PRIMARY KEY (id)\n' +
-        ')');
 
     connection.query('CREATE TABLE IF NOT EXISTS modules (' +
         'id INT NOT NULL AUTO_INCREMENT,' +
@@ -41,20 +33,35 @@ function initDatabase() {
         ')'
     );
 
-    connection.query('CREATE TABLE IF NOT EXISTS messages_modules_join (' +
-        'message_id INT,' +
-        'module_id INT,' +
-        'PRIMARY KEY (message_id, module_id),' +
-        'FOREIGN KEY (message_id) REFERENCES messages(id),' +
-        'FOREIGN KEY (module_id) REFERENCES modules(id)' +
-        ')')
+    connection.query('CREATE TABLE IF NOT EXISTS bot_messages (\n' +
+        '  id INT NOT NULL AUTO_INCREMENT,\n' +
+        '  content TEXT,\n' +
+        '  module_id INT,\n' +
+        '  time_stamp DATETIME,\n' +
+        '  PRIMARY KEY (id),\n' +
+        '  FOREIGN KEY (module_id) REFERENCES modules(id)' +
+        ')');
+
+    connection.query('CREATE TABLE IF NOT EXISTS messages (\n' +
+        '  id INT NOT NULL AUTO_INCREMENT,\n' +
+        '  content TEXT,\n' +
+        '  user_name varchar(45),\n' +
+        '  time_stamp DATETIME,\n' +
+        '  processed INT,' +
+        '  PRIMARY KEY (id),\n' +
+        '  FOREIGN KEY (processed) REFERENCES bot_messages (id)' +
+        ')');
 }
 
-function insertMessage(userName, content, timeStamp) {
+function insertMessage(message) {
     initConnection();
 
     return new Promise(function (resolve, reject) {
-        connection.query('INSERT INTO messages (content, user_name, time_stamp, processed) VALUES(?, ?, ?, ?)', [content, userName, timeStamp, 0],
+        if (!message instanceof Message) {
+            reject(new Error('Wrong class given'));
+        }
+
+        connection.query('INSERT INTO messages (content, user_name, time_stamp) VALUES(?, ?, ?)', [message.content, message.userName, message.timeStamp, message.processed],
             function(err, res) {
                 if (err) reject(err);
                 resolve(res.insertId);
@@ -63,16 +70,40 @@ function insertMessage(userName, content, timeStamp) {
 
 }
 
-function insertMessageModuleLink(messageId, moduleId) {
+
+function insertBotMessage(message) {
     initConnection();
 
     return new Promise(function (resolve, reject) {
-        connection.query('INSERT INTO messages_modules_join (message_id, module_id) VALUES (?, ?)', [messageId, moduleId],
+        if (!message instanceof BotMessage) {
+            reject(new Error('Wrong class given'));
+        }
+
+        connection.query('INSERT INTO bot_messages (content, module_id, time_stamp) VALUES(?, ?, ?)', [message.content, message.moduleId, message.timeStamp],
             function(err, res) {
                 if (err) reject(err);
                 resolve(res.insertId);
-            })
+            });
     });
+
+}
+
+
+function updateMessage(message) {
+    initConnection();
+
+    return new Promise(function (resolve, reject) {
+        if (!message instanceof Message) {
+            reject(new Error('Wrong class given'));
+        }
+
+        connection.query('UPDATE messages SET processed = ? WHERE id = ?', [message.processed, message.id],
+            function(err, res) {
+                if (err) reject(err);
+                resolve(res);
+            });
+    });
+
 }
 
 function selectMessageAmount(startDate,endDate){
@@ -80,6 +111,28 @@ function selectMessageAmount(startDate,endDate){
 
     return new Promise(function (resolve, reject) {
         let query_str = 'SELECT COUNT(id) as amount FROM messages';
+        if(startDate != null && endDate != null){
+                connection.query(query_str + ' WHERE time_stamp > ? AND time_stamp < ? ', [startDate, endDate],
+                    function (err, res) {
+                        if (err) reject(err);
+                        if (!res) reject("Something went wrong");
+                        resolve(res[0].amount);
+                    })
+        } else {
+            connection.query(query_str,
+                function (err, res) {
+                    if (err) reject(err);
+                    resolve(res[0].amount);
+                })
+        }
+    });
+}
+
+function selectBotMessageAmount(startDate,endDate){
+    initConnection();
+
+    return new Promise(function (resolve, reject) {
+        let query_str = 'SELECT COUNT(id) as amount FROM bot_messages';
         if(startDate != null && endDate != null){
                 connection.query(query_str + ' WHERE time_stamp > ? AND time_stamp < ? ', [startDate, endDate],
                     function (err, res) {
@@ -110,12 +163,39 @@ function selectMessages(startDate, endDate) {
     })
 }
 
+function selectBotMessages(startDate, endDate) {
+    return new Promise(function (resolve, reject) {
+        connection.query('SELECT * FROM bot_messages  WHERE time_stamp > ? AND time_stamp < ?', [startDate, endDate], function(err,res) {
+            if (err) reject(err);
+            let messages = [];
+            for (let i = 0; i < res.length; i++) {
+                let message = new BotMessage(res[i].id, res[i].content, res[i].module_id, res[i].time_stamp);
+                messages.push(message);
+            }
+            resolve(messages);
+        })
+    })
+}
+
+function selectBotMessageById(id) {
+    return new Promise(function (resolve, reject) {
+        connection.query('SELECT * FROM bot_messages  WHERE id=?', [id], function(err,res) {
+            if (err) reject(err);
+            let messages = [];
+            for (let i = 0; i < res.length; i++) {
+                let message = new BotMessage(res[i].id, res[i].content, res[i].module_id, res[i].time_stamp);
+                messages.push(message);
+            }
+            resolve(messages);
+        })
+    })
+}
+
 function insertModule(moduleObj) {
     return new Promise(function(resolve, reject) {
         if (!moduleObj instanceof BotModule) {
             reject(new Error('Wrong class given'));
         }
-        console.log(moduleObj);
         connection.query('INSERT INTO modules (name, key_word, active, group_key_word, description, path_to_file, user_name, password, api_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)' , [moduleObj.name, moduleObj.keyWord, moduleObj.active, moduleObj.groupKeyWord, moduleObj.description, moduleObj.pathToFile, moduleObj.userName, moduleObj.password, moduleObj.apiKey], function(err, res) {
             if (err) reject(err);
             resolve(res.insertId);
@@ -166,6 +246,20 @@ function selectModuleById(id) {
     })
 }
 
+function selectModuleByFilePath(filePath) {
+    return new Promise(function (resolve, reject) {
+        connection.query('SELECT * FROM modules WHERE path_to_file LIKE ?', [filePath], function(err,res) {
+            if (err) reject(err);
+            let objects = [];
+            for (let i = 0; i < res.length; i++) {
+                let obj = new BotModule(res[i].id, res[i].name, res[i].key_word, res[i].active, res[i].group_key_word, res[i].description, res[i].path_to_file, res[i].user_name, res[i].password, res[i].api_key);
+                objects.push(obj);
+            }
+            resolve(objects);
+        })
+    })
+}
+
 function selectAllModuleIds() {{
     return new Promise(function (resolve, reject) {
         connection.query('SELECT id FROM modules', function(err,res) {
@@ -184,11 +278,16 @@ function selectAllModuleIds() {{
 var exports = module.exports;
 exports.initDatabase = initDatabase;
 exports.insertMessage = insertMessage;
+exports.insertBotMessage = insertBotMessage;
+exports.updateMessage = updateMessage;
 exports.selectMessageAmount = selectMessageAmount;
-exports.insertMessageModuleLink = insertMessageModuleLink;
+exports.selectBotMessageAmount = selectBotMessageAmount;
 exports.insertModule = insertModule;
 exports.updateModule = updateModule;
 exports.selectAllModules = selectAllModules;
 exports.selectModuleById = selectModuleById;
+exports.selectModuleByFilePath = selectModuleByFilePath;
 exports.selectAllModuleIds = selectAllModuleIds;
 exports.selectMessages = selectMessages;
+exports.selectBotMessages = selectBotMessages;
+exports.selectBotMessageById = selectBotMessageById;

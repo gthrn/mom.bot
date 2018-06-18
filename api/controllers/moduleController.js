@@ -1,5 +1,5 @@
 'use strict';
-let ModuleClass = require("../models/botModule.js");
+let BotModule = require("../models/botModule.js");
 let database = require('../../mysql');
 
 //--------------MODULE--------------
@@ -8,7 +8,7 @@ let database = require('../../mysql');
 exports.getModuleById = function(req, res) {
     database.selectModuleById(req.query.id).then(
         function(result) {
-            res.json({"module":result[0]});
+            res.json(result[0]);
         },
         function(err) {
             console.log(err);
@@ -22,20 +22,33 @@ exports.getModuleById = function(req, res) {
 // DESC: Inserting Module Object via JSON.
 exports.insertModuleObject = function(req, res) {
     let json = req.body;
-
     if(json.active === "true") json.active = 1;
     else json.active = 0;
 
-    let botModule = new BotModule(null, json.name, json.keyWord, json.active, json.groupKeyWord, json.description, json.pathToFile, json.userName, json.password, json.apiKey);
+    let id = json._id ? json._id : null;
+    let botModule = new BotModule(id, json._name, json._keyWord, json._active, json._groupKeyWord, json._description, json._pathToFile, json._userName, json._password, json._apiKey);
 
-    database.insertModule(botModule).then(
-        function(result) {
-            res.json({'id':result});
-        },
-        function(err) {
-            console.log(err);
-        }
-    );
+    if (json._name === null || json._name === undefined) throw new Error();
+
+    if (botModule.id === null) {
+        database.insertModule(botModule).then(
+            function(result) {
+                res.json({'id':result});
+            },
+            function(err) {
+                console.log(err);
+            }
+        );
+    } else {
+        database.updateModule(botModule).then(
+            function(result) {
+                res.json({'id':result});
+            },
+            function(err) {
+                console.log(err);
+            }
+        );
+    }
 
 };
 //--------------MODULES--------------

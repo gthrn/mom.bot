@@ -9,4 +9,13 @@ module.exports = function(app) {
         .get(standard.getMessagesAmount)
         .post(standard.standardPost);
 
+    app.route('/bot_message')
+        .get(standard.getBotMessage);
+    app.route('/bot_messages')
+        .get(standard.getBotMessages)
+        .post(standard.standardPost);
+    app.route('/bot_messages_amount')
+        .get(standard.getBotMessagesAmount)
+        .post(standard.standardPost);
+
 };

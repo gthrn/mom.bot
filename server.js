@@ -14,7 +14,6 @@ function server() {
     var routesPath = "./api/routes/";
     fs.readdir(routesPath, (err, files) => {
         files.forEach(file => {
-            console.log("register Route: "+file);
             var routes = require(routesPath+file);
             routes(app); //register the route
 
@@ -22,8 +21,6 @@ function server() {
     })
 
     app.listen(port);
-    
-    console.log('todo list RESTful API server started on: ' + port);
 }
 
 module.exports = server;
